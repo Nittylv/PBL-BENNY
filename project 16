@@ -1,0 +1,794 @@
+OBJECTIVE : Automate Infrastructure With IAC Using Terraform Part 1
+AFTER WE BUILT AWS INFRASTRUCTURE FOR 2 WEBSITES MANUALLY IN PROJECT 15,IT IS TIME TO AUTOMATE THE PROCESS USING TERRAFORM (INFRASTRUCTURE WITH IAC)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Step 1) A-Create an IAM user and name it terraform 
+ensure the user has only programmatic access to AWS account
+Grant user admin access permissions
+Copy the secret access key and access key ID and save somewhere 
+Configure programmatic access from your workplace to connect to AWS using the copied keys above and PYTHON SDK
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+1B) -I created a group and named it project16 in order to give user admin permission/access 
+
+
+
+
+
+
+
+
+
+
+-This is the access ID and secret access key generated 
+
+
+
+
+1C) -This user can access AWS through AWS CLI or AWS so i need to configure either of them so i chose to configure AWS CLI 
+
+I installed AWS CLI for windows (64 bits) from AWS console by following the link on project page 
+
+
+I configured using aws configure in my git bash terminal by inputting my Key ID, secret access key, region and format manually 
+
+
+
+
+aws configure
+AWS Access Key ID [****************GXEO]:
+AWS Secret Access Key [****************CbkU]:
+Default region name [us-east-1]:
+Default output format [json]:
+
+
+
+To check if configuration is saved, i did aws configuration list 
+
+
+
+
+Step 2): Create an S3 bucket to store Terraform State file 
+(You can name it something like <yourname>-dev-terraform-bucket,
+ Note: S3 bucket names must be unique unique within a region partition)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-To check my S3 bucket created, i did aws s3 ls 
+
+
+
+Step 3: Create a folder called PBL, and create a file in the folder, name it main.tf.
+Launched an ec2 instance(ubuntu), opened vs code, create a folder and name PBL, inside that folder, create a file and name main.tf
+-I installed the terraform extensions above for vs code 
+
+
+ 
+Add AWS as a provider, and a resource to create a VPC in the main.tf file
+ 
+Provider block informs Terraform that we intend to build infrastructure within AWS.
+ 
+Add the following code in the main.tf file.
+provider "aws" {
+  region = "eu-central-1"
+}
+
+# Create VPC
+resource "aws_vpc" "main" {
+  cidr_block                     = "172.16.0.0/16"
+  enable_dns_support             = "true"
+  enable_dns_hostnames           = "true"
+  enable_classiclink             = "false"
+  enable_classiclink_dns_support = "false"
+}
+
+
+
+
+
+Step 4): The next thing we need to do is to download necessary plugins for Terraform to work. These plugins are used by providers and provisioners
+
+At this stage, we only have provider in our main.tf file
+Main.tf So, Terraform will just download plugin for AWS provider
+
+
+This can be accomplished using terraform init 
+But first Cd to PBL folder, run tree command and if it is not installed, install using sudo apt install tree -y
+
+
+
+
+
+I noticed the error that the tree was not installed so i updated ubuntu using sudo apt update, then sudo apt install tree -y to install tree again and it worked 
+
+
+
+
+
+
+
+
+
+
+
+-tree to check 
+
+
+
+
+
+Step 5: terraform init 
+
+
+
+
+-I got this error as i needed to install terraform with the following steps
+
+wget -O- https://apt.releases.hashicorp.com/gpg | \
+    gpg --dearmor | \
+    sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
+
+gpg --no-default-keyring \
+    --keyring /usr/share/keyrings/hashicorp-archive-keyring.gpg \
+    --fingerprint
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
+    https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
+    sudo tee /etc/apt/sources.list.d/hashicorp.list
+
+sudo apt update
+sudo apt install terraform
+
+
+
+
+
+
+
+
+-You can see that after init terraform, there are files that were automatically created, (.terraform (which has terraform providers inside) and terraform.lock.hcl)
+
+
+
+
+
+
+
+
+
+
+
+
+Step 6): terraform plan 
+
+I was getting :error configuring terraform AWS provider as my credentials were configured in my local machine and not in my terminal 
+I configured my credentials again in terminal using step 1C above 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Step 7): i ran terraform plan again 
+
+
+
+
+
+
+
+Observation:
+A new file is created terraform.tfstate This is how Terraform keeps itself up to date with the exact state of the infrastructure. It reads this file to know what already exists, what should be added, or destroyed based on the entire terraform code that is being developed.
+ 
+ 
+If you also observe closely, you would realise that another file gets created during planning and apply. But this file gets deleted immediately. terraform.tfstate.lock.info This is what Terraform uses to track who is running its code against the infrastructure at any point in time. This is very important for teams working on the same Terraform repository at the same time. The lock prevents a user from executing Terraform configuration against the same infrastructure when another user is doing the same – it allows them to avoid duplicates and conflicts.
+
+
+
+Step 8): Creating subnets 
+
+According to our architectural design, we require 6 subnets:
+2 public subnets
+2 private subnets for web servers
+2 private subnets for data layer
+Add below configuration to the main.tf file:
+# Create public subnets1
+    resource "aws_subnet" "public1" {
+    vpc_id                     = aws_vpc.main.id
+    cidr_block                 = "172.16.0.0/24"
+    map_public_ip_on_launch    = true
+    availability_zone          = "eu-central-1a"
+
+}
+
+# Create public subnet2
+    resource "aws_subnet" "public2" {
+    vpc_id                     = aws_vpc.main.id
+    cidr_block                 = "172.16.1.0/24"
+    map_public_ip_on_launch    = true
+    availability_zone          = "eu-central-1b"
+}
+
+
+
+
+
+
+
+
+Note: We are creating 2 subnets, therefore declaring 2 resource blocks – one for each of the subnets.
+We are using the vpc_id argument to interpolate the value of the VPC id by setting it to aws_vpc.main.id. This way, Terraform knows inside which VPC to create the subnet.
+
+
+Step 9): Run terraform fmt (To properly format and arrange the files in main.tf)
+terraform plan 
+terraform apply 
+
+
+
+
+-terraform plan 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-terraform apply 
+
+
+
+
+
+Step 10) -Checked on AWS to see new vpc created 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Step 11) -To check public subnet 1 and 2 created 
+
+
+
+
+
+
+
+
+
+
+
+Observation: 
+
+Hard coded values: Remember our best practice hint from the beginning? Both the availability_zone and cidr_block arguments are hard coded. We should always endeavour to make our work dynamic.
+Multiple Resource Blocks: Notice that we have declared multiple resource blocks for each subnet in the code. This is bad coding practice. We need to create a single resource block that can dynamically create resources without specifying multiple blocks. Imagine if we wanted to create 10 subnets, our code would look very clumsy. So, we need to optimize this by introducing a count argument.
+Let us improve our code by refactoring it.
+ 
+ 
+ 
+ 
+ 
+ 
+Step 12) 
+Fixing Hard Coded Values: We will introduce variables, and remove hard coding
+Starting with the provider block, declare a variable named region and give it a default value
+Update the provider section by referring to the declared variable 
+ 
+The main.tf will contain the content below: copy and paste code below and paste before aws provider 
+ 
+variable "region" {
+      default = "us-east-1"
+}
+
+variable "vpc_cidr" {
+    default = "172.16.0.0/16"
+}
+
+variable "enable_dns_support" {
+    default = "true"
+}
+
+variable "enable_dns_hostnames" {
+    default ="true" 
+}
+
+variable "enable_classiclink" {
+    default = "false"
+}
+
+variable "enable_classiclink_dns_support" {
+    default = "false"
+}
+
+
+So default values for region =var.region
+For cidr_block =var.vpc_cidr
+For enable_dns_support =var.enable_dns_support
+For enable_dns_hostnames =var.enable_dns_hostnames
+Enable_classiclink =var.enable_classiclink
+Enable_classiclink_dns_support =var.enable_classiclink_dns_support
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+NOTE: Terraform has a functionality that allows us to pull data which exposes information to us. For example, every region has Availability Zones (AZ). Different regions have from 2 to 4 Availability Zones. With over 20 geographic regions and over 70 AZs served by AWS, it is impossible to keep up with the latest information by hard coding the names of AZs. Hence, we will explore the use of Terraform’s Data Sources to fetch information outside of Terraform. In this case, from AWS
+ 
+Step 13) Let us fetch Availability zones from AWS, and replace the hard coded value in the subnet’s availability_zone section.
+Copy and paste the code below in main.tf file before create subnet 1
+       # Get list of availability zones
+        data "aws_availability_zones" "available" {
+        state = "available"
+        }
+
+
+
+
+Step 14) Replace the “create public subnet” code with the code below
+
+To make use of this new data resource, we will need to introduce a count
+ argument in the subnet block: Something like this.
+
+   # Create public subnet1
+    resource "aws_subnet" "public" { 
+        count                   = 2
+        vpc_id                  = aws_vpc.main.id
+        cidr_block              = "172.16.1.0/24"
+        map_public_ip_on_launch = true
+        availability_zone       = data.aws_availability_zones.available.names[count.index]
+
+    }
+
+
+
+
+
+
+
+
+
+
+NOTE: 
+The count tells us that we need 2 subnets. Therefore, Terraform will invoke a loop to create 2 subnets.
+ 
+The data resource will return a list object that contains a list of AZs. Internally, Terraform will receive the data like this
+
+            ["eu-central-1a", "eu-central-1b"]
+
+
+Each of them is an index, the first one is index 0 while the other is index ,1
+ If the data returned had more than 2 records, then the index numbers would continue to increment.
+Therefore, each time Terraform goes into a loop to create a subnet, it must be created in the retrieved AZ from the list. Each loop will need the index number to determine what AZ the subnet will be created. That is why we have 
+               Data.aws_availability_zones.available.names[count.index] 
+               as the value for availability_zone
+
+ When the first loop runs, the first index will be 0 , therefore the AZ will be 
+           Eu-central-1a, The pattern will repeat for the second loop.
+
+But we still have a problem. If we run Terraform with this configuration, it may succeed for the first time, but by the time it goes into the second loop, it will fail because we still have cidr_block  hard coded. The same cidr_block
+ cannot be created twice within the same VPC. So, we have a little more work to do. Let’s make cidr_block  dynamic.
+
+We will introduce a function cidrsubnet() to make this happen
+ It accepts 3 parameters. Let us use it first by updating the configuration, then we will explore its internals.
+ 
+ 
+ 
+ 
+ 
+ 
+Step 15) Update the main.tf with the code below 
+   # Create public subnet1
+    resource "aws_subnet" "public" { 
+        count                   = 2
+        vpc_id                  = aws_vpc.main.id
+        cidr_block              = cidrsubnet(var.vpc_cidr, 4 , count.index)
+        map_public_ip_on_launch = true
+        availability_zone       = data.aws_availability_zones.available.names[count.index]
+
+    }
+
+
+OBSERVATION: A closer look at cidrsubnet  – this function works like an algorithm to dynamically create a subnet CIDR per AZ. Regardless of the number of subnets created, it takes care of the cidr value per subnet.
+Its parameters are;
+cidrsubnet(prefix, newbits, netnum)
+The prefix parameter must be given in CIDR notation, same as for VPC
+
+The newbits parameter is the number of additional bits with which to extend the prefix. For example, if given a prefix ending with /16 and a newbits value of 4, the resulting subnet address will have length /20
+ 
+The netnum parameter is a whole number that can be represented as a binary integer with no more than newbits  binary digits, which will be used to populate the additional bits added to the prefix
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+You can experiment how this works by entering the terraform console and keep changing the figures to see the output 
+On the terminal, run terraform console 
+type cidrsubnet("172.16.0.0/16", 4, 0)
+Hit enter
+See the output
+Keep changing the numbers and see what happens.
+To get out of the console, type 
+exit
+-After i changed the number to cidrsubnet("172.16.0.0/16", 4, 1) and the output is below 
+
+ 
+ 
+ 
+The final problem to solve is removing hard coded count value
+If we cannot hardcode a value we want, then we will need a way to dynamically provide the value based on some input. Since the data resource returns all the AZs within a region, it makes sense to count the number of AZs returned and pass that number to the count argument.
+ 
+ 
+ 
+To do this, we can introduce length() function, which basically determines the length of a given list, map, or string Since data.aws_availability_zones.available.names  returns a list like 
+      ["eu-central-1a", "eu-central-1b", "eu-central-1c"]
+
+
+ we can pass it into a length function and get the number of the AZs.
+    length(["eu-central-1a", "eu-central-1b", "eu-central-1c"])
+
+ 
+Open up terraform console and try it
+
+
+
+
+Step 16)  Update the public subnet block to look like this
+# Create public subnet1
+    resource "aws_subnet" "public" { 
+        count                   = length(data.aws_availability_zones.available.names)
+        vpc_id                  = aws_vpc.main.id
+        cidr_block              = cidrsubnet(var.vpc_cidr, 4 , count.index)
+        map_public_ip_on_launch = true
+        availability_zone       = data.aws_availability_zones.available.names[count.index]
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Observations:
+What we have now, is sufficient to create the subnet resource required. But if you observe, it is not satisfying our business requirement of just 2 subnets
+
+ The length  function will return number 3 to the count  argument, but what we actually need is 2
+
+Step 17)  copy the code below and paste in main.tf file after the last variable  Now, let us fix this;
+Declare a variable to store the desired number of public subnets, and set the default value
+
+variable "preferred_number_of_public_subnets" {
+  default = 2
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Step 18) Next, update the count argument with a condition. Terraform needs to check first if there is a desired number of subnets. Otherwise, use the data returned by the length function.
+ 
+Update “create public subnet 1” with the code below
+See how that is presented below.
+# Create public subnets
+resource "aws_subnet" "public" {
+  count  = var.preferred_number_of_public_subnets == null ? length(data.aws_availability_zones.available.names) : var.preferred_number_of_public_subnets   
+  vpc_id = aws_vpc.main.id
+  cidr_block              = cidrsubnet(var.vpc_cidr, 4 , count.index)
+  map_public_ip_on_launch = true
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
+}
+
+
+
+
+
+
+
+
+
+Step 19) -terraform plan 
+
+
+
+
+
+
+
+
+
+Step 20) Create a new file and name it variables.tf and copy the code below and paste (This is all variables from main.tf file)
+
+variable "region" {
+        default = "us-east-1"
+    }
+ 
+    variable "vpc_cidr" {
+        default = "172.16.0.0/16"
+    }
+ 
+    variable "enable_dns_support" {
+        default = "true"
+    }
+ 
+    variable "enable_dns_hostnames" {
+        default ="true"
+    }
+ 
+    variable "enable_classiclink" {
+        default = "false"
+    }
+ 
+    variable "enable_classiclink_dns_support" {
+        default = "false"
+    }
+ 
+    variable "preferred_number_of_public_subnets" {
+  default = null
+}
+ 
+
+
+
+
+
+
+Step 21) Create another file and name it terraform.tfvars and paste the copd below in it 
+
+region = "us-east-1"
+
+vpc_cidr = "172.16.0.0/16" 
+
+enable_dns_support = "true" 
+
+enable_dns_hostnames = "true"  
+
+enable_classiclink = "false" 
+
+enable_classiclink_dns_support = "false" 
+
+preferred_number_of_public_subnets = 2
+
+
+-main.tf file should now look like this 
+# Get list of availability zones
+data "aws_availability_zones" "available" {
+state = "available"
+}
+
+provider "aws" {
+  region = var.region
+}
+
+# Create VPC
+resource "aws_vpc" "main" {
+  cidr_block                     = var.vpc_cidr
+  enable_dns_support             = var.enable_dns_support 
+  enable_dns_hostnames           = var.enable_dns_support
+  enable_classiclink             = var.enable_classiclink
+  enable_classiclink_dns_support = var.enable_classiclink
+
+}
+
+# Create public subnets
+resource "aws_subnet" "public" {
+  count  = var.preferred_number_of_public_subnets == null ? length(data.aws_availability_zones.available.names) : var.preferred_number_of_public_subnets   
+  vpc_id = aws_vpc.main.id
+  cidr_block              = cidrsubnet(var.vpc_cidr, 4 , count.index)
+  map_public_ip_on_launch = true
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
+}
+
+
+
+
+
+Step 22) run tree 
+You should also have this file structure in the PBL folder.
+.
+├── main.tf
+├── terraform.tfstate
+├── terraform.tfvars
+└── variables.tf
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Step 23) terraform fmt 
+
+
+
+
+Step 24) terraform plan 
+
+
+
+
+
+
+
+
+
+Step 25) -terraform apply –auto-approve 
+
+
+
+-This error was a result of me not deleting or commenting out the “create public subnet2” code below
+#    Create public subnet2
+#  resource "aws_subnet" "public2" {
+#    vpc_id                  = aws_vpc.main.id
+#     cidr_block              = "172.16.1.0/24"
+#     map_public_ip_on_launch = true
+#     availability_zone       = "us-east-1b"
+#  }
+
+
+
+-I went back to main.tf file and commented the code out and ran the command again
+
+
+
+
+
+
+
+
+
+
+
+Step 26)  terraform apply –auto-approve and it was a success 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-This was how i edited my AWS credentials as i created a new user with permissions 
+  vi ~/.aws/config
+vi ~/.aws/credentials
+aws configure to check again
+
+
+
