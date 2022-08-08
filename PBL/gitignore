@@ -1,0 +1,3 @@
+`# Local .terraform directories.terraform/providers
+# .tfstate files.tfstate.tfstate.backup# lock info
+# Crash log filescrash.log`
