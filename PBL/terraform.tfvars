@@ -29,7 +29,9 @@ master-username = "benny"
 
 master-password = "bennypbl"
 
-account_no = "032051391204"
+environment = "dev"
+
+# account_no = "032051391204"
 
 # terraform_locks= "benni-dev-terraform-dynamodb"
 
