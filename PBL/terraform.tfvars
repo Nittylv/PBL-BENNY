@@ -21,7 +21,7 @@ tags = {
   Billing-Account = "032051391204"
 }
 
-ami = "ami-08d4ac5b634553e16"
+ami = "ami-06640050dc3f556bb"
 
 keypair = "project16"
 
